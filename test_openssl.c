@@ -23,12 +23,12 @@
 
 #include <openssl/ecdsa.h>
 #include <openssl/obj_mac.h>
-#include <openssl/sha.h>
 #include <stdio.h>
 #include <stdint.h>
 
 #include "ecdsa.h"
 #include "rand.h"
+#include "hasher.h"
 
 #include "nist256p1.h"
 #include "secp256k1.h"
@@ -36,8 +36,8 @@
 void openssl_check(unsigned int iterations, int nid, const ecdsa_curve *curve)
 {
 	uint8_t sig[64], pub_key33[33], pub_key65[65], priv_key[32], msg[256], buffer[1000], hash[32], *p;
-	SHA256_CTX sha256;
 	EC_GROUP *ecgroup;
+	Hasher hasher;
 
 	ecgroup = EC_GROUP_new_by_curve_name(nid);
 
@@ -75,7 +75,7 @@ void openssl_check(unsigned int iterations, int nid, const ecdsa_curve *curve)
 		}
 
 		// use our ECDSA signer to sign the message with the key
-		if (ecdsa_sign(curve, priv_key, msg, msg_len, sig, NULL, NULL) != 0) {
+		if (ecdsa_sign(curve, HASHER_SHA2, priv_key, msg, msg_len, sig, NULL, NULL) != 0) {
 			printf("trezor-crypto signing failed\n");
 			return;
 		}
@@ -85,11 +85,11 @@ void openssl_check(unsigned int iterations, int nid, const ecdsa_curve *curve)
 		ecdsa_get_public_key65(curve, priv_key, pub_key65);
 
 		// use our ECDSA verifier to verify the message signature
-		if (ecdsa_verify(curve, pub_key65, sig, msg, msg_len) != 0) {
+		if (ecdsa_verify(curve, HASHER_SHA2, pub_key65, sig, msg, msg_len) != 0) {
 			printf("trezor-crypto verification failed (pub_key_len = 65)\n");
 			return;
 		}
-		if (ecdsa_verify(curve, pub_key33, sig, msg, msg_len) != 0) {
+		if (ecdsa_verify(curve, HASHER_SHA2, pub_key33, sig, msg, msg_len) != 0) {
 			printf("trezor-crypto verification failed (pub_key_len = 33)\n");
 			return;
 		}
@@ -100,9 +100,9 @@ void openssl_check(unsigned int iterations, int nid, const ecdsa_curve *curve)
 		BN_bin2bn(sig + 32, 32, signature->s);
 
 		// compute the digest of the message
-		SHA256_Init(&sha256);
-		SHA256_Update(&sha256, msg, msg_len);
-		SHA256_Final(hash, &sha256);
+		hasher_Init(&hasher, HASHER_SHA2);
+		hasher_Update(&hasher, msg, msg_len);
+		hasher_Final(&hasher, hash);
 
 		// verify all went well, i.e. we can decrypt our signature with OpenSSL
 		if (ECDSA_do_verify(hash, 32, signature, eckey) != 1) {
