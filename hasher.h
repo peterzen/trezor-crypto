@@ -27,11 +27,13 @@
 #include <stdint.h>
 
 #include "sha2.h"
+#include "blake256.h"
 
 #define HASHER_DIGEST_LENGTH 32
 
 typedef enum {
     HASHER_SHA2,
+    HASHER_BLAKE256,
 } HasherType;
 
 typedef struct {
@@ -39,6 +41,7 @@ typedef struct {
 
     union {
         SHA256_CTX sha2;
+        state256 blake256;
     } ctx;
 } Hasher;
 
